@@ -1,6 +1,3 @@
-import:
-  - catalog/test-nlb
-
 components:
   terraform:
     private-link-service/basic:
@@ -11,4 +8,4 @@ components:
         name: "private-link-service"
         vpc_endpoint_service_acceptance_required: false
         vpc_endpoint_service_network_load_balancer_arns:
-          - !terraform.output test-nlb nlb_arn
+          - !terraform.state test-nlb nlb_arn

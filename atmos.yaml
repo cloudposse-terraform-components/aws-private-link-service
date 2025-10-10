@@ -9,3 +9,35 @@
 # Import shared configuration used by all modules
 import:
   - https://raw.githubusercontent.com/cloudposse-terraform-components/.github/refs/heads/main/.github/atmos/terraform-component.yaml
+
+# Override test commands to run in the same shell
+commands:
+  - name: test
+    commands:
+      - name: "deploy"
+        description: Deploy
+        commands:
+          - name: "dependencies"
+            description: Deploy dependencies only
+            steps:
+              - "cd test && go test -timeout 1h --only-deploy-dependencies --skip-destroy-dependencies"
+
+          - name: "component"
+            description: Deploy component only
+            steps:
+              - "cd test && go test -timeout 1h --skip-deploy-dependencies --skip-destroy-dependencies --skip-destroy-component"
+
+      - name: "assert"
+        description: Run asserts
+        steps:
+          - "cd test && go test -timeout 1h --skip-deploy-dependencies --skip-destroy-dependencies --skip-deploy-component --skip-destroy-component"
+
+      - name: "destroy"
+        description: Destroy
+        steps:
+          - "cd test && go test -timeout 1h --skip-deploy-dependencies --skip-deploy-component"
+
+      - name: "run"
+        description: Run tests
+        steps:
+          - "cd test && go test -timeout 1h"
