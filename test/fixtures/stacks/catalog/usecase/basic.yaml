@@ -1,0 +1,20 @@
+components:
+  terraform:
+    eks/echo-server/basic:
+      metadata:
+        component: eks/echo-server
+      vars:
+        enabled: true
+        kube_exec_auth_role_arn_enabled: false
+        name: "echo-server"
+        kubernetes_namespace: "echo"
+        description: "Echo server, for testing purposes"
+        create_namespace: true
+        timeout: 180
+        wait: true
+        atomic: true
+        cleanup_on_fail: true
+
+        ingress_type: "alb" # or "nginx"
+        # %[1]v is the tenant name, %[2]v is the stage name, %[3]v is the region name
+        hostname_template: "echo.%[3]v.%[2]v.%[1]v.sample-domain.net"
