@@ -21,7 +21,11 @@ repos:
 
       # YAML
       - id: check-yaml  # checks yaml files for parseable syntax.
-        exclude: '.*/templates/.*\.yaml$'  # Exclude Helm templates (contain Go templating)
+        exclude: |
+          (?x)^(
+            .*/templates/.*\.yaml$ |  # Exclude Helm templates (contain Go templating)
+            test/fixtures/.*\.yaml$   # Exclude Atmos test fixtures (contain Atmos-specific tags)
+          )$
 
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.81.0

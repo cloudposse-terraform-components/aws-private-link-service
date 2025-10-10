@@ -1,3 +1,11 @@
+---
+tags:
+  - component/private-link-service
+  - layer/network
+  - provider/aws
+  - provider/terraform
+---
+
 # Component: `private-link-service`
 
 This component provisions AWS VPC Endpoint Services (**provider side**) to expose **YOUR services** to external consumers via AWS PrivateLink.
@@ -23,30 +31,6 @@ Your AWS Account (PROVIDER)              Consumer's AWS Account
 ```
 
 **Key Point**: The consumer (e.g., Astronomer) creates a VPC Endpoint in their account that connects to YOUR VPC Endpoint Service. Traffic flows privately over AWS's network, never touching the internet.
-
-## Usage
-
-**Stack Level**: Regional
-
-Here's an example snippet for how to use this component.
-
-```yaml
-components:
-  terraform:
-    private-link-service:
-      vars:
-        enabled: true  
-        name: "private-link-service"
-
-        vpc_endpoint_service_network_load_balancer_arns:
-          - !terraform.output eks/nlb nlb_arn
-
-        # Get customer AWS account ID or role ARN from their support team
-        # Example (get from Astronomer support):
-        vpc_endpoint_service_allowed_principals:
-          - "arn:aws:iam::ASTRONOMER-ACCOUNT-ID:role/astronomer-remote-management"
-
-```
 
 ## Astronomer Integration
 
@@ -136,7 +120,33 @@ vpc_endpoint_service_name = "com.amazonaws.vpce.us-west-2.vpce-svc-0abc123def456
 ```
 
 <!-- prettier-ignore-start -->
-<!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
+<!-- prettier-ignore-end -->
+## Usage
+
+**Stack Level**: Regional
+
+Here's an example snippet for how to use this component.
+
+```yaml
+components:
+  terraform:
+    private-link-service:
+      vars:
+        enabled: true  
+        name: "private-link-service"
+
+        vpc_endpoint_service_network_load_balancer_arns:
+          - !terraform.output eks/nlb nlb_arn
+
+        # Get customer AWS account ID or role ARN from their support team
+        # Example (get from Astronomer support):
+        vpc_endpoint_service_allowed_principals:
+          - "arn:aws:iam::ASTRONOMER-ACCOUNT-ID:role/astronomer-remote-management"
+
+```
+
+
+<!-- markdownlint-disable -->
 ## Requirements
 
 | Name | Version |
@@ -205,10 +215,18 @@ vpc_endpoint_service_name = "com.amazonaws.vpce.us-west-2.vpce-svc-0abc123def456
 | <a name="output_vpc_endpoint_service_id"></a> [vpc\_endpoint\_service\_id](#output\_vpc\_endpoint\_service\_id) | The ID of the VPC endpoint service |
 | <a name="output_vpc_endpoint_service_name"></a> [vpc\_endpoint\_service\_name](#output\_vpc\_endpoint\_service\_name) | The service name that consumers use to connect |
 | <a name="output_vpc_endpoint_service_state"></a> [vpc\_endpoint\_service\_state](#output\_vpc\_endpoint\_service\_state) | The state of the VPC endpoint service |
-<!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
-<!-- prettier-ignore-end -->
+<!-- markdownlint-restore -->
+
+
 
 ## References
 
-- [AWS VPC Endpoint Services](https://docs.aws.amazon.com/vpc/latest/privatelink/create-endpoint-service.html)
-- [AWS PrivateLink Documentation](https://docs.aws.amazon.com/vpc/latest/privatelink/)
+
+- [AWS VPC Endpoint Services](https://docs.aws.amazon.com/vpc/latest/privatelink/create-endpoint-service.html) - Documentation for creating VPC Endpoint Services
+
+- [AWS PrivateLink Documentation](https://docs.aws.amazon.com/vpc/latest/privatelink/) - Official AWS PrivateLink documentation
+
+
+
+
+[<img src="https://cloudposse.com/logo-300x69.svg" height="32" align="right"/>](https://cpco.io/homepage?utm_source=github&utm_medium=readme&utm_campaign=cloudposse-terraform-components/aws-private-link-service&utm_content=)

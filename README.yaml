@@ -1,132 +1,168 @@
-name: "aws-eks-echo-server"
+name: "aws-private-link-service"
 # Canonical GitHub repo
-github_repo: "cloudposse-terraform-components/aws-eks-echo-server"
+github_repo: "cloudposse-terraform-components/aws-private-link-service"
 # Short description of this project
 description: |-
-  This is copied from
-  [cloudposse/terraform-aws-components](https://github.com/cloudposse/terraform-aws-components/tree/main/modules/echo-server).
+  This component provisions AWS VPC Endpoint Services (**provider side**) to expose **YOUR services** to external consumers via AWS PrivateLink.
 
-  This component installs the [Ealenn/Echo-Server](https://github.com/Ealenn/Echo-Server) to EKS clusters. The echo server
-  is a server that sends it back to the client a JSON representation of all the data the server received, which is a
-  combination of information sent by the client and information sent by the web server infrastructure. For further
-  details, please consult the [Echo-Server documentation](https://ealenn.github.io/Echo-Server/).
+  ## What This Component Does
 
-  ## Prerequisites
+  **You are the PROVIDER** - This component creates the infrastructure to expose your services (EKS pods, RDS databases, APIs) to other AWS accounts or VPCs.
 
-  Echo server is intended to provide end-to-end testing of everything needed to deploy an application or service with a
-  public HTTPS endpoint. It uses defaults where possible, such as using the default IngressClass, in order to verify that
-  the defaults are sufficient for a typical application.
+  ```
+  Your AWS Account (PROVIDER)              Consumer's AWS Account
+  ┌─────────────────────────────┐         ┌──────────────────────────┐
+  │ Your Services               │         │ Their Applications       │
+  │ - EKS pods                  │         │ - Airflow (Astronomer)   │
+  │ - RDS databases             │         │ - External systems       │
+  │ - Internal APIs             │         │ - Partner services       │
+  │         ↓                   │         │         ↑                │
+  │ Network Load Balancer ──────┼─────────┼─────────┘                │
+  │         ↓                   │  AWS    │                          │
+  │ VPC Endpoint Service        │ Private │ VPC Endpoint             │
+  │ (this component)            │  Link   │ (they create)            │
+  │ com.amazonaws.vpce...       │         │                          │
+  └─────────────────────────────┘         └──────────────────────────┘
+  ```
 
-  In order to minimize the impact of the echo server on the rest of the cluster, it does not set any configuration that
-  would affect other ingresses, such as WAF rules, logging, or redirecting HTTP to HTTPS. Those settings should be
-  configured in the IngressClass where possible.
+  **Key Point**: The consumer (e.g., Astronomer) creates a VPC Endpoint in their account that connects to YOUR VPC Endpoint Service. Traffic flows privately over AWS's network, never touching the internet.
 
-  Therefore, it requires several other components. At the moment, it supports 2 configurations:
+  ## Astronomer Integration
 
-  1. ALB with ACM Certificate
+  This example shows the full workflow for exposing your EKS services to Astronomer's Airflow cluster via PrivateLink.
 
-  - AWS Load Balancer Controller (ALB) version 2.2.0 or later, with ACM certificate auto-discovery enabled
-  - A default IngressClass, which can be provisioned by the `alb-controller` component as part of deploying the
-    controller, or can be provisioned separately, for example by the `alb-controller-ingress-class` component.
-  - Pre-provisioned ACM TLS certificate covering the provisioned host name (typically a wildcard certificate covering all
-    hosts in the domain)
+  ### Architecture
 
-  2. Nginx with Cert Manager Certificate
+  ```
+  Astronomer's AWS Account                    YOUR AWS Account
+  ┌──────────────────────────┐               ┌─────────────────────────────────┐
+  │ Airflow Workers          │               │ EKS Cluster                     │
+  │ (run DAGs)               │               │                                 │
+  │        ↓                 │               │ Pods labeled:                   │
+  │ VPC Endpoint ────────────┼───Private─────┼→ astronomer: enabled            │
+  │ (Astronomer creates)     │    Link       │         ↓                       │
+  │                          │               │ NLB (eks/nlb component)         │
+  │                          │               │         ↓                       │
+  │                          │               │ VPC Endpoint Service            │
+  │                          │               │ (this component)                │
+  └──────────────────────────┘               └─────────────────────────────────┘
+  ```
 
-  - Nginx (via `kubernetes/ingress-nginx` controller). We recommend `ingress-nginx` v1.1.0 or later, but `echo-server`
-    should work with any version that supports Ingress API version `networking.k8s.io/v1`.
-  - `jetstack/cert-manager` configured to automatically (via Ingress Shim, installed by default) generate TLS certificates
-    via a Cluster Issuer (by default, named `letsEncrypt-prod`).
+  ### Step 1: Label Your EKS Pods
 
-  In both configurations, it has these common requirements:
+  First, tag the pods you want to expose to Astronomer:
 
-  - EKS component deployed, with component name specified in `eks_component_name` (defaults to "eks/cluster")
-  - Kubernetes version 1.19 or later
-  - Ingress API version `networking.k8s.io/v1`
-  - [kubernetes-sigs/external-dns](https://github.com/kubernetes-sigs/external-dns)
-  - A default IngressClass, either explicitly provisioned or supported without provisioning by the Ingress controller.
+  ```yaml
+  components:
+    terraform:
+      eks/echo-server:
+        vars:
+          # ...
+          chart_values:
+            labels:
+              astronomer: enabled  # ← This label exposes pods to Astronomer
+  ```
 
-  ## Warnings
+  ### Step 2: Create NLB via AWS Load Balancer Controller
 
-  A Terraform plan may fail to apply, giving a Kubernetes authentication failure. This is due to a known issue with
-  Terraform and the Kubernetes provider. During the "plan" phase Terraform gets a short-lived Kubernetes authentication
-  token and caches it, and then tries to use it during "apply". If the token has expired by the time you try to run
-  "apply", the "apply" will fail. The workaround is to run `terraform apply -auto-approve` without a "plan" file.
+  Deploy an NLB that targets your labeled pods:
+
+  ```yaml
+  components:
+    terraform:
+      eks/nlb/astronomer:
+        metadata:
+          component: eks/nlb
+        vars:
+          enabled: true
+          name: "nlb"
+          attributes: ["astronomer"]
+          # Target pods with the astronomer label
+          nlb_selector:
+            astronomer: enabled
+  ```
+
+  ### Step 3: Create VPC Endpoint Service
+
+  Now expose the NLB via PrivateLink:
+
+  ```yaml
+  components:
+    terraform:
+      private-link-service/astronomer:
+        metadata:
+          component: private-link-service
+        vars:
+          enabled: true
+          name: "private-link-service"
+          attributes: ["astronomer"]
+
+          # Reference the NLB created in Step 2
+          vpc_endpoint_service_network_load_balancer_arns:
+            - !terraform.output eks/nlb/astronomer nlb_arn
+
+          # Allow Astronomer's AWS account (get from their support)
+          vpc_endpoint_service_allowed_principals:
+            - "arn:aws:iam::ASTRONOMER-ACCOUNT-ID:role/astronomer-remote-management"
+  ```
+
+  ### Step 4: Share Service Name with Astronomer
+
+  Get the VPC Endpoint Service name:
+
+  ```bash
+  vpc_endpoint_service_name = "com.amazonaws.vpce.us-west-2.vpce-svc-0abc123def456789"
+  ```
 
   <!-- prettier-ignore-start -->
   <!-- prettier-ignore-end -->
 usage: |-
   **Stack Level**: Regional
 
-  Use this in the catalog or use these variables to overwrite the catalog values.
-
-  Set `ingress_type` to "alb" if using `alb-controller` or "nginx" if using `ingress-nginx`.
-
-  Normally, you should not set the IngressClass or IngressGroup, as this component is intended to test the defaults.
-  However, if you need to, set them in `chart_values`:
-
-  ```yaml
-  chart_values:
-    ingress:
-      class: "other-ingress-class"
-      alb:
-        # IngressGroup is specific to alb-controller
-        group_name: "other-ingress-group"
-  ```
-
-  Note that if you follow recommendations and do not set the ingress class name, the deployed Ingress will have the
-  ingressClassName setting injected by the Ingress controller, set to the then-current default. This means that if later
-  you change the default IngressClass, the Ingress will be NOT be updated to use the new default. Furthermore, because of
-  limitations in the Helm provider, this will not be detected as drift. You will need to destroy and re-deploy the echo
-  server to update the Ingress to the new default.
+  Here's an example snippet for how to use this component.
 
   ```yaml
   components:
     terraform:
-      echo-server:
-        settings:
-          spacelift:
-            workspace_enabled: true
+      private-link-service:
         vars:
           enabled: true
-          name: "echo-server"
-          kubernetes_namespace: "echo"
-          description: "Echo server, for testing purposes"
-          create_namespace: true
-          timeout: 180
-          wait: true
-          atomic: true
-          cleanup_on_fail: true
+          name: "private-link-service"
 
-          ingress_type: "alb" # or "nginx"
-          # %[1]v is the tenant name, %[2]v is the stage name, %[3]v is the region name
-          hostname_template: "echo.%[3]v.%[2]v.%[1]v.sample-domain.net"
+          vpc_endpoint_service_network_load_balancer_arns:
+            - !terraform.output eks/nlb nlb_arn
+
+          # Get customer AWS account ID or role ARN from their support team
+          # Example (get from Astronomer support):
+          vpc_endpoint_service_allowed_principals:
+            - "arn:aws:iam::ASTRONOMER-ACCOUNT-ID:role/astronomer-remote-management"
+
   ```
-
-  In rare cases where some ingress controllers do not support the `ingressClassName` field, you can restore the old
-  `kubernetes.io/ingress.class` annotation by setting `ingress.use_ingress_class_annotation: true` in `chart_values`.
 references:
-  - name: "Ealenn/Echo-Server"
-    description: ""
-    url: "https://github.com/Ealenn/Echo-Server"
+  - name: "AWS VPC Endpoint Services"
+    description: "Documentation for creating VPC Endpoint Services"
+    url: "https://docs.aws.amazon.com/vpc/latest/privatelink/create-endpoint-service.html"
+  - name: "AWS PrivateLink Documentation"
+    description: "Official AWS PrivateLink documentation"
+    url: "https://docs.aws.amazon.com/vpc/latest/privatelink/"
 tags:
-  - component/eks/echo-server
-  - layer/eks
+  - component/private-link-service
+  - layer/network
   - provider/aws
-  - provider/echo-server
+  - provider/terraform
 # Categories of this project
 categories:
-  - component/eks/echo-server
-  - layer/eks
+  - component/private-link-service
+  - layer/network
   - provider/aws
-  - provider/echo-server
+  - provider/terraform
 # License of this project
 license: "APACHE2"
 # Badges to display
 badges:
   - name: Latest Release
-    image: https://img.shields.io/github/release/cloudposse-terraform-components/aws-eks-echo-server.svg?style=for-the-badge
-    url: https://github.com/cloudposse-terraform-components/aws-eks-echo-server/releases/latest
+    image: https://img.shields.io/github/release/cloudposse-terraform-components/aws-private-link-service.svg?style=for-the-badge
+    url: https://github.com/cloudposse-terraform-components/aws-private-link-service/releases/latest
   - name: Slack Community
     image: https://slack.cloudposse.com/for-the-badge.svg
     url: https://slack.cloudposse.com

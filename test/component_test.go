@@ -1,14 +1,11 @@
 package test
 
 import (
-	"fmt"
 	"testing"
-	"strings"
-	helper "github.com/cloudposse/test-helpers/pkg/atmos/component-helper"
+
 	"github.com/cloudposse/test-helpers/pkg/atmos"
-	"github.com/cloudposse/test-helpers/pkg/helm"
+	helper "github.com/cloudposse/test-helpers/pkg/atmos/component-helper"
 	"github.com/stretchr/testify/assert"
-	"github.com/gruntwork-io/terratest/modules/random"
 )
 
 type ComponentSuite struct {
@@ -16,74 +13,45 @@ type ComponentSuite struct {
 }
 
 func (s *ComponentSuite) TestBasic() {
-	const component = "eks/echo-server/basic"
+	const component = "private-link-service/basic"
 	const stack = "default-test"
-	const awsRegion = "us-east-2"
 
-	randomID := strings.ToLower(random.UniqueId())
-
-	dnsDelegatedOptions := s.GetAtmosOptions("dns-delegated", stack, nil)
-	delegatedDomainName := atmos.Output(s.T(), dnsDelegatedOptions, "default_domain_name")
-
-	domainTemplate := fmt.Sprintf("echo-%s.%s.%s", randomID, "%[3]v.%[2]v.%[1]v", delegatedDomainName)
-
-	namespace := fmt.Sprintf("echo-%s", randomID)
-
-	inputs := map[string]interface{}{
-		"kubernetes_namespace": namespace,
-		"hostname_template": domainTemplate,
-	}
-
-	defer s.DestroyAtmosComponent(s.T(), component, stack, &inputs)
-	options, _ := s.DeployAtmosComponent(s.T(), component, stack, &inputs)
+	defer s.DestroyAtmosComponent(s.T(), component, stack, nil)
+	options, _ := s.DeployAtmosComponent(s.T(), component, stack, nil)
 	assert.NotNil(s.T(), options)
 
-	metadata := helm.Metadata{}
+	// Verify VPC Endpoint Service outputs
+	vpcEndpointServiceID := atmos.Output(s.T(), options, "vpc_endpoint_service_id")
+	assert.NotEmpty(s.T(), vpcEndpointServiceID)
 
-	atmos.OutputStruct(s.T(), options, "metadata", &metadata)
+	vpcEndpointServiceARN := atmos.Output(s.T(), options, "vpc_endpoint_service_arn")
+	assert.NotEmpty(s.T(), vpcEndpointServiceARN)
+	assert.Contains(s.T(), vpcEndpointServiceARN, "vpc-endpoint-service")
 
-	assert.Equal(s.T(), metadata.AppVersion, "0.8.0")
-	assert.Equal(s.T(), metadata.Chart, "echo-server")
-	assert.NotNil(s.T(), metadata.FirstDeployed)
-	assert.NotNil(s.T(), metadata.LastDeployed)
-	assert.Equal(s.T(), metadata.Name, "echo-server")
-	assert.Equal(s.T(), metadata.Namespace, namespace)
-	assert.NotNil(s.T(), metadata.Values)
-	assert.Equal(s.T(), metadata.Version, "0.4.0")
+	vpcEndpointServiceName := atmos.Output(s.T(), options, "vpc_endpoint_service_name")
+	assert.NotEmpty(s.T(), vpcEndpointServiceName)
+	assert.Contains(s.T(), vpcEndpointServiceName, "com.amazonaws.vpce")
 
-	hostname := atmos.Output(s.T(), options, "hostname")
-	assert.NotNil(s.T(), hostname)
+	vpcEndpointServiceState := atmos.Output(s.T(), options, "vpc_endpoint_service_state")
+	assert.NotEmpty(s.T(), vpcEndpointServiceState)
+	assert.Contains(s.T(), []string{"Available", "Pending"}, vpcEndpointServiceState)
 
-	s.DriftTest(component, stack, &inputs)
+	endpointEventsSNSTopicARN := atmos.Output(s.T(), options, "endpoint_events_sns_topic_arn")
+	assert.NotEmpty(s.T(), endpointEventsSNSTopicARN)
+	assert.Contains(s.T(), endpointEventsSNSTopicARN, "sns")
+
+	s.DriftTest(component, stack, nil)
 }
 
 func (s *ComponentSuite) TestEnabledFlag() {
-	const component = "eks/echo-server/disabled"
+	const component = "private-link-service/disabled"
 	const stack = "default-test"
 	s.VerifyEnabledFlag(component, stack, nil)
-}
-
-func (s *ComponentSuite) SetupSuite() {
-	s.TestSuite.InitConfig()
-	s.TestSuite.Config.ComponentDestDir = "components/terraform/eks/echo-server"
-	s.TestSuite.SetupSuite()
 }
 
 func TestRunSuite(t *testing.T) {
 	suite := new(ComponentSuite)
 	suite.AddDependency(t, "vpc", "default-test", nil)
-	suite.AddDependency(t, "eks/cluster", "default-test", nil)
-	suite.AddDependency(t, "eks/alb-controller", "default-test", nil)
-
-	subdomain := strings.ToLower(random.UniqueId())
-	inputs := map[string]interface{}{
-		"zone_config": []map[string]interface{}{
-			{
-				"subdomain": subdomain,
-				"zone_name": "components.cptest.test-automation.app",
-			},
-		},
-	}
-	suite.AddDependency(t, "dns-delegated", "default-test", &inputs)
+	suite.AddDependency(t, "test-nlb", "default-test", nil)
 	helper.Run(t, suite)
 }
