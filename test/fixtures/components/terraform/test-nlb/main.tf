@@ -15,7 +15,7 @@ module "vpc" {
 resource "aws_lb" "this" {
   count = local.enabled ? 1 : 0
 
-  name               = module.this.id
+  name_prefix        = substr(module.this.id, 0, 6)
   internal           = var.internal
   load_balancer_type = var.load_balancer_type
   subnets            = local.vpc.private_subnet_ids
@@ -24,15 +24,19 @@ resource "aws_lb" "this" {
   enable_cross_zone_load_balancing = var.cross_zone_load_balancing_enabled
 
   tags = module.this.tags
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_lb_target_group" "this" {
   count = local.enabled ? 1 : 0
 
-  name     = "${module.this.id}-tg"
-  port     = 80
-  protocol = "TCP"
-  vpc_id   = local.vpc.vpc_id
+  name_prefix = substr(module.this.id, 0, 6)
+  port        = 80
+  protocol    = "TCP"
+  vpc_id      = local.vpc.vpc_id
 
   health_check {
     enabled  = true
@@ -41,6 +45,10 @@ resource "aws_lb_target_group" "this" {
   }
 
   tags = module.this.tags
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_lb_listener" "this" {

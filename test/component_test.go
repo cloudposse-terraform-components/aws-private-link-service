@@ -49,6 +49,12 @@ func (s *ComponentSuite) TestEnabledFlag() {
 	s.VerifyEnabledFlag(component, stack, nil)
 }
 
+func (s *ComponentSuite) SetupSuite() {
+	s.TestSuite.InitConfig()
+	s.TestSuite.Config.ComponentDestDir = "components/terraform/private-link-service"
+	s.TestSuite.SetupSuite()
+}
+
 func TestRunSuite(t *testing.T) {
 	suite := new(ComponentSuite)
 	suite.AddDependency(t, "vpc", "default-test", nil)
