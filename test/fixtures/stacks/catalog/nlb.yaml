@@ -1,0 +1,6 @@
+components:
+  terraform:
+    nlb:
+      vars:
+        enabled: true
+        name: "nlb"

@@ -28,3 +28,15 @@ spec:
         - "**/*.tftmpl"
         - "**/modules/**"
       excluded_paths: []
+
+    - component: "nlb"
+      source: github.com/cloudposse-terraform-components/aws-nlb.git//src?ref={{.Version}}
+      version: v0.1.0
+      targets:
+        - "components/terraform/nlb"
+      included_paths:
+        - "**/*.tf"
+        - "**/*.md"
+        - "**/*.tftmpl"
+        - "**/modules/**"
+      excluded_paths: []

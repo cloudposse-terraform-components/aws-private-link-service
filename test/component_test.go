@@ -58,6 +58,6 @@ func (s *ComponentSuite) SetupSuite() {
 func TestRunSuite(t *testing.T) {
 	suite := new(ComponentSuite)
 	suite.AddDependency(t, "vpc", "default-test", nil)
-	suite.AddDependency(t, "test-nlb", "default-test", nil)
+	suite.AddDependency(t, "nlb", "default-test", nil)
 	helper.Run(t, suite)
 }

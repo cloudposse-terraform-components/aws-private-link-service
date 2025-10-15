@@ -8,4 +8,4 @@ components:
         name: "private-link-service"
         vpc_endpoint_service_acceptance_required: false
         vpc_endpoint_service_network_load_balancer_arns:
-          - !terraform.state test-nlb nlb_arn
+          - !terraform.state nlb 'nlb.nlb_arn'
