@@ -1,6 +1,6 @@
 import:
   - orgs/default/test/_defaults
   - catalog/vpc
-  - catalog/test-nlb
+  - catalog/nlb
   - catalog/usecase/basic
   - catalog/usecase/disabled

@@ -43,14 +43,14 @@ go test -v -timeout 60m
 
 The tests automatically create and destroy these dependencies:
 - VPC (`vpc`) - Provides networking infrastructure
-- Test NLB (`test-nlb`) - A minimal Network Load Balancer for testing
+- Test NLB (`nlb`) - A minimal Network Load Balancer for testing
 
 ## Test Fixtures
 
 Test fixtures are located in `fixtures/stacks/`:
 - `catalog/usecase/basic.yaml` - Basic test configuration
 - `catalog/usecase/disabled.yaml` - Disabled component test configuration
-- `catalog/test-nlb.yaml` - Test NLB configuration
+- `catalog/nlb.yaml` - NLB configuration
 - `catalog/vpc.yaml` - VPC configuration
 
 ## Cleanup
