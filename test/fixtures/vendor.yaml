@@ -28,3 +28,14 @@ spec:
         - "**/*.tftmpl"
         - "**/modules/**"
       excluded_paths: []
+
+    - component: "test-nlb"
+      source: vendor/test-nlb
+      targets:
+        - "components/terraform/test-nlb"
+      included_paths:
+        - "**/*.tf"
+        - "**/*.md"
+        - "**/*.tftmpl"
+        - "**/modules/**"
+      excluded_paths: []
